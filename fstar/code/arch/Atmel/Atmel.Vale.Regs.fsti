@@ -1,0 +1,23 @@
+module Atmel.Vale.Regs
+// This interface should not refer to Semantics_s
+
+open FStar.Mul
+open Defs_s
+open Prop_s
+open Atmel.Machine_s
+
+module F = FStar.FunctionalExtensionality
+type t = F.restricted_t reg (fun _ -> nat8)
+
+val equal (regs1:t) (regs2:t) : prop0
+
+val lemma_equal_intro (regs1:t) (regs2:t) : Lemma
+  (requires forall r. regs1 r == regs2 r)
+  (ensures equal regs1 regs2)
+  [SMTPat (equal regs1 regs2)]
+
+val lemma_equal_elim (regs1:t) (regs2:t) : Lemma
+  (requires equal regs1 regs2)
+  (ensures regs1 == regs2)
+  [SMTPat (equal regs1 regs2)]
+

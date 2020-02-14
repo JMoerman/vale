@@ -1,0 +1,411 @@
+include{:fstar}{:open} "Types_s"
+include{:fstar}{:open} "Arch.Types"
+include{:fstar}{:open} "Atmel.Machine_s"
+include{:fstar}{:open} "Atmel.Vale.State"
+include{:fstar}{:open} "Atmel.Vale.Decls"
+include{:fstar}{:open} "Atmel.Vale.QuickCode"
+
+module Atmel.Vale.InsBasic
+
+#verbatim{:interface}
+open Defs_s
+open Types_s
+open Arch.Types
+open Atmel.Machine_s
+open Atmel.Vale.State
+open Atmel.Vale.Decls
+open Atmel.Vale.QuickCode
+#endverbatim
+
+#verbatim
+open FStar.Mul
+open Atmel.Machine_s
+open Atmel.Vale
+open Atmel.Vale.State
+open Atmel.Vale.Decls
+friend Atmel.Vale.Decls
+module S = Atmel.Semantics_s
+module P = Atmel.Print_s
+#reset-options "--initial_fuel 2 --max_fuel 2 --z3rlimit 20"
+#endverbatim
+
+var ok:bool {:state ok()};
+var r0:nat8 {:state reg(R0)};
+var r1:nat8 {:state reg(R1)};
+var r2:nat8 {:state reg(R2)};
+var r3:nat8 {:state reg(R3)};
+var r4:nat8 {:state reg(R4)};
+var r5:nat8 {:state reg(R5)};
+var r6:nat8 {:state reg(R6)};
+var r7:nat8 {:state reg(R7)};
+var r8:nat8 {:state reg(R8)};
+var r9:nat8 {:state reg(R9)};
+var r10:nat8 {:state reg(R10)};
+var r11:nat8 {:state reg(R11)};
+var r12:nat8 {:state reg(R12)};
+var r13:nat8 {:state reg(R13)};
+var r14:nat8 {:state reg(R14)};
+var r15:nat8 {:state reg(R15)};
+var sreg:nat8 {:state flags()};
+var mem:memory {:state mem()};
+
+// registers
+operand_type reg8:nat8 @ reg :=
+| inout r0 | inout r1 | inout r2 | inout r3
+| inout r4 | inout r5 | inout r6 | inout r8
+| inout r9 | inout r10 | inout r11 | inout r12
+| inout r13 | inout r14 | inout r15
+;
+
+// immediate operand
+operand_type iopr8:nat8 := const;
+
+procedure Mov8(inout rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.Mov8(rd, rr))}
+    {:quick exportOnly}
+    ensures
+        rd == old(rr);
+{
+}
+
+procedure LoadImm8(inout rd:reg8, in k:iopr8)
+    {:public}
+    {:instruction Ins(S.LoadImm8(rd, k))}
+    {:quick exportOnly}
+    ensures
+        rd == k;
+{
+}
+
+#verbatim
+#restart-solver
+#push-options "--max_fuel 0 --max_ifuel 0 --using_facts_from 'Prims FStar.UInt'"
+let lemma_fundamental_div_mod8 (a b:nat8) :
+  Lemma (pow2_8 * (FStar.UInt.mul_div #8 a b) + (FStar.UInt.mul_mod #8 a b) == a * b)
+  =
+  FStar.Math.Lemmas.lemma_div_mod (a * b) pow2_8
+#pop-options
+#endverbatim
+
+procedure Mul8(in rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.Mul8(rd, rr))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+        r0;
+        r1;
+    ensures
+        pow2_8 * r1 + r0 == old(rd * rr);
+{
+}
+
+procedure Add8(inout rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.Add8(rd, rr))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd + rr) % 0x100;
+        sreg == update_cf(old(sreg), old(rd + rr) >= pow2_8);
+{
+}
+
+procedure AddCarry8(inout rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.AddCarry8(rd, rr))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd + rr + (if cf(sreg) then 1 else 0)) % 0x100;
+        sreg == update_cf(old(sreg), old(rd + rr + (if cf(sreg) then 1 else 0)) >= pow2_8);
+{
+}
+
+procedure Sub8(inout rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.Sub8(rd, rr))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd - rr) % 0x100;
+        sreg == update_cf(old(sreg), old(rd - rr) < 0);
+{
+}
+
+procedure SubBorrow8(inout rd:reg8, in rr:reg8)
+    {:public}
+    {:instruction Ins(S.SubBorrow8(rd, rr))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd - rr - (if cf(sreg) then 1 else 0)) % 0x100;
+        sreg == update_cf(old(sreg), old(rd - rr - (if cf(sreg) then 1 else 0)) < 0);
+{
+}
+
+procedure SubImm8(inout rd:reg8, in k:iopr8)
+    {:public}
+    {:instruction Ins(S.SubImm8(rd, k))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd - k) % 0x100;
+        sreg == update_cf(old(sreg), old(rd - k) < 0);
+{
+}
+
+procedure SubCImm8(inout rd:reg8, in k:iopr8)
+    {:public}
+    {:instruction Ins(S.SubCImm8(rd, k))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd - k - (if cf(sreg) then 1 else 0)) % 0x100;
+        sreg == update_cf(old(sreg), old(rd - k - (if cf(sreg) then 1 else 0)) < 0);
+{
+}
+
+procedure Neg(inout rd:reg8)
+    {:public}
+    {:instruction Ins(S.Neg(rd))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(0 - rd) % 0x100;
+        sreg == update_cf(old(sreg), rd = 0);
+{
+}
+
+procedure Inc(inout rd:reg8)
+    {:public}
+    {:instruction Ins(S.Inc(rd))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd + 1) % pow2_8;
+        sreg == update_cf(old(sreg), old(rd+1) = pow2_8);
+{
+}
+
+procedure Dec(inout rd:reg8)
+    {:public}
+    {:instruction Ins(S.Dec(rd))}
+    {:quick exportOnly}
+    modifies
+        sreg;
+    ensures
+        rd == old(rd - 1) % pow2_8;
+        sreg == update_cf(old(sreg), old(rd) = 0);
+{
+}
+
+#verbatim
+#reset-options "--initial_fuel 2 --max_fuel 2 --z3rlimit 100"
+#endverbatim
+
+procedure Mov16(inout rdl:reg8, inout rdh:reg8, in rrl:reg8, in rrh:reg8)
+    {:public}
+    {:instruction Ins(S.Mov16(rdl, rrl))}
+    {:quick exportOnly}
+    requires
+        @rrl != R15;
+        @rdl != R15;
+        next_reg(@rdl) == @rdh;
+        next_reg(@rrl) == @rrh;
+    ensures
+        rdl == old(rrl);
+        rdh == old(rrh);
+{
+}
+
+//procedure Mov64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Mov64(dst,src))}
+//    {:quick exportOnly}
+//    ensures
+//        dst == old(src);
+//{
+//}
+
+//procedure Add64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Add64(dst,src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    requires
+//        src + dst < pow2_64;
+//    ensures
+//        dst == old(dst + src);
+//{
+//}
+
+//procedure Add64Wrap(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Add64(dst,src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(add_wrap64(dst, src));
+//        cf(efl) == old(dst + src >= pow2_64);
+//{
+//}
+
+//procedure AddLea64(out dst:dst_opr8, in src1:opr8, in src2:opr8)
+//    {:public}
+//    {:instruction Ins(S.AddLea64(dst, src1, src2))}
+//    {:quick exportOnly}
+//    requires
+//        src1 + src2 < pow2_64;
+//    ensures
+//        dst == old(src1) + old(src2);
+//{
+//}
+
+//procedure Adc64Wrap(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.AddCarry64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(add_wrap64(add_wrap64(dst, src), (if cf(efl) then 1 else 0)));
+//        cf(efl) == old(dst + src + (if cf(efl) then 1 else 0)) >= pow2_64;
+//{
+//}
+
+//procedure Adcx64Wrap(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Adcx64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(add_wrap64(add_wrap64(dst, src), (if cf(efl) then 1 else 0)));
+//        efl == update_cf(old(efl), old(dst + src + (if cf(efl) then 1 else 0)) >= pow2_64);
+//{
+//}
+
+//procedure Adox64Wrap(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Adox64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(add_wrap64(add_wrap64(dst, src), (if overflow(efl) then 1 else 0)));
+//        efl == update_of(old(efl), old(dst + src + (if overflow(efl) then 1 else 0)) >= pow2_64);
+//{
+//}
+
+//procedure Sub64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Sub64(dst, src))}
+//    {:quick exportOnly}
+//    requires
+//        0 <= dst - src;
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(dst) - old(src);
+//{
+//}
+
+//procedure Sub64Wrap(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Sub64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(dst - src) % pow2_64;
+//{
+//}
+
+//#verbatim
+//#restart-solver
+//#push-options "--max_fuel 0 --max_ifuel 0 --using_facts_from 'Prims FStar.UInt'"
+//let lemma_fundamental_div_mod (a b:nat8) :
+//  Lemma (pow2_64 * (FStar.UInt.mul_div #64 a b) + (FStar.UInt.mul_mod #64 a b) == a * b)
+//  =
+//  FStar.Math.Lemmas.lemma_div_mod (a * b) pow2_64
+//#pop-options
+//#endverbatim
+
+//ghost procedure lemma_fundamental_div_mod(ghost a:nat8, ghost b:nat8) {:public} extern;
+
+//procedure Mul64Wrap(in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Mul64(src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//        rax;
+//        rdx;
+//    ensures
+//        pow2_64 * rdx + rax == old(rax * src);
+//{
+//    lemma_fundamental_div_mod(old(rax), old(src));
+//}
+
+//procedure Mulx64(out dst_hi:reg_opr8, out dst_lo:reg_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Mulx64(dst_hi, dst_lo, src))}
+//    {:quick exportOnly}
+//    requires @dst_hi != @dst_lo;
+//    reads
+//        rdx;
+//    ensures
+//        pow2_64 * dst_hi + dst_lo == old(rdx * src);
+//{
+//    lemma_fundamental_div_mod(old(rdx), old(src));
+//}
+
+//procedure IMul64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.IMul64(dst, src))}
+//    {:quick exportOnly}
+//    requires
+//        0 <= dst * src < pow2_64;
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(dst * src);
+//{
+//}
+
+//procedure Xor64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.Xor64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(ixor64(dst,src));
+//        !overflow(efl);
+//        !cf(efl);
+//{
+//}
+
+//procedure And64(inout dst:dst_opr8, in src:opr8)
+//    {:public}
+//    {:instruction Ins(S.And64(dst, src))}
+//    {:quick exportOnly}
+//    modifies
+//        efl;
+//    ensures
+//        dst == old(iand64(dst,src));
+//{
+//}
+

@@ -1,0 +1,1 @@
+module Atmel.Vale.State
